@@ -10,4 +10,5 @@ urlpatterns = [
     path('',include("apps.contact.urls")),
     path('',include("apps.manufacture.urls")),
     path('',include("apps.employee.urls")),
+    path('',include("apps.stock.urls")),
 ]

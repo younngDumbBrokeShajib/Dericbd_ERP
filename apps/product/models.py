@@ -28,3 +28,9 @@ class ProductTemplate(models.Model):
     category = models.ForeignKey(ProductCategory,on_delete=models.CASCADE,related_name="category")
 
     # product_bom = mdoels.ForeignKey(model_name,on_delete=models.SET_NULL,related_name="bom")
+
+class ProductVariant(models.Model):
+    product = models.ForeignKey(ProductTemplate,on_delete=models.CASCADE,related_name="product")
+    sku = models.CharField(max_length=300)
+    lot_code = models.CharField(max_length=300)
+    weight = models.FloatField()
