@@ -3,6 +3,7 @@ from apps.contact.models import Contacts
 from apps.product.models import ProductTemplate
 from apps.employee.models import Employee
 from apps.stock.models import StockLocation,StockMove
+# Create your models here.
 
 class Manufacture(models.Model):
     STATUS = (

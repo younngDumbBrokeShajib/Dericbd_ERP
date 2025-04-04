@@ -1,7 +1,7 @@
 from django.db import models
 from apps.product.models import ProductTemplate,ProductVariant
 
-
+# Create your models here.
 class StockLocation(models.Model):
     name = models.CharField(max_length=200)
     code = models.CharField(max_length=100)
