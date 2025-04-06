@@ -10,7 +10,8 @@ class Manufacture(models.Model):
         ('draft', 'Draft'),
         ('scheduled', 'Scheduled'),
         ('in-process', 'In Process'),
-        ('in-process', 'In Process'),
+        ('confirmed', 'Confirmed'),
+        ('done','Done'),
     )
     mo_number = models.BigAutoField(primary_key=True)
     date = models.DateTimeField()
@@ -20,50 +21,74 @@ class Manufacture(models.Model):
     duration = models.DecimalField(max_digits=100, decimal_places=2)
     operator = models.ForeignKey(Employee,on_delete=models.CASCADE,related_name="employee")
     status = models.CharField(choices=STATUS,max_length=20,default='draft')
-    location = models.ForeignKey(StockLocation,on_delete=models.CASCADE,related_name="location_of_stock")
+    #location_to = models.ForeignKey(StockLocation,on_delete=models.CASCADE,related_name="location_of_stock")
+    location_from = models.ForeignKey(StockLocation, on_delete=models.CASCADE, related_name="mo_raw_material_location",null=True,blank=True)
+    location_to = models.ForeignKey(StockLocation, on_delete=models.CASCADE, related_name="mo_finished_product_location",null=True,blank=True)
 
     def total_raw_material_cost(self):
-        pass
-    
+
+        raw_cost_sum=sum(items.total_cost() for items in self.raw_materials.all())
+        return raw_cost_sum
+
+
     def total_manufacturing_cost(self):
         pass
 
     def set_done(self):
+
+        """Confirm MO, consume raw materials, and produce finished goods."""
+        if self.status != "draft":
+            raise ValueError("Manufacturing Order must be in draft state to confirm.")
+
         # Create stock moves for finished goods
         StockMove.objects.create(
             product=self.product,
             quantity=self.produced_qty,
-            location_to=self.location,
+            location_to=self.location_to,
             reference=f"MO-{self.mo_number}",
             move_type='manufacture',
-            done=True
+            done=False
         )
         # Create stock moves for raw materials
-        for raw in self.raw_materials.all():
+        for mo_raw_material in self.mo_raw_materials.all():
             StockMove.objects.create(
-                product=raw.raw_material,
-                quantity=raw.quantity_used,
-                location_from=self.location,
+                product=mo_raw_material.raw_material,
+                quantity=mo_raw_material.quantity_used * self.produced_qty,
+                location_from=self.location_from,
                 reference=f"MO-{self.mo_number}",
                 move_type='manufacture',
-                done=True
+                done=False
             )
         
-        self.status = 'done'
+        self.status = 'confirmed' 
+        #after the stock_move method is done , mo will confirm -> Done state
         self.save()
 
+    def complete_manufacturing(self):
+        """Finalize MO and update stock."""
+        if self.status != "confirmed":
+            raise ValueError("Manufacturing Order must be confirmed before completion.")
+
+        # Process all stock moves
+        for move in StockMove.objects.filter(reference__startswith=f"MO-{self.id}"):
+            move.process_move()
+
+        self.status = "done" #done state as te stock.move method has been processed
+        self.save()
+    
+    
     def __str__(self):
-        return self.moNumber
+        return self.mo_number
 
 
 class ManufacturingOrderRawMaterial(models.Model):
-    mo = models.ForeignKey(Manufacture,on_delete=models.CASCADE)
+    mo = models.ForeignKey(Manufacture,on_delete=models.CASCADE,related_name='mo_raw_materials')
     raw_material = models.ForeignKey(ProductTemplate,on_delete=models.CASCADE,limit_choices_to={'category__name': 'Raw Materials'},related_name="raw_materials")
     quantity_used = models.DecimalField(max_digits=10, decimal_places=2)
 
     def total_cost (self):
 
-        return 'x'
+         return self.quantity_used*self.raw_material.cost_per_unit
         
     def __str__(self):
 
