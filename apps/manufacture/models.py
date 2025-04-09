@@ -1,8 +1,8 @@
 from django.db import models
 from apps.contact.models import Contacts
-from apps.product.models import ProductTemplate
+from apps.product.models import ProductTemplate,BillOfMaterials
 from apps.employee.models import Employee
-from apps.stock.models import StockLocation,StockMove
+from apps.stock.models import StockLocation,StockMove,StockQuant
 # Create your models here.
 
 class Manufacture(models.Model):
@@ -25,6 +25,12 @@ class Manufacture(models.Model):
     location_from = models.ForeignKey(StockLocation, on_delete=models.CASCADE, related_name="mo_raw_material_location",null=True,blank=True)
     location_to = models.ForeignKey(StockLocation, on_delete=models.CASCADE, related_name="mo_finished_product_location",null=True,blank=True)
 
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None  # Check if this is a new object
+        super().save(*args, **kwargs)
+        if is_new:
+            self.populate_manufacturingOrderRawMaterial()  # Call your method once MO is saved
+        
     def total_raw_material_cost(self):
 
         raw_cost_sum=sum(items.total_cost() for items in self.raw_materials.all())
@@ -34,11 +40,42 @@ class Manufacture(models.Model):
     def total_manufacturing_cost(self):
         pass
 
+    def populate_manufacturingOrderRawMaterial(self):
+         'populate Manufacturing order for BOM'
+         if self.mo_raw_materials.exists():
+             return
+         
+         boms = BillOfMaterials.objects.filter(finished_product=self.product)
+         for bom in boms:
+             
+             ManufacturingOrderRawMaterial.objects.create(
+             mo=self,
+             raw_material=bom.raw_material,
+             quantity_used=(bom.quantity_per_unit * self.produced_qty) / bom.finished_product_quantity
+        )
+             
+
     def set_done(self):
 
         """Confirm MO, consume raw materials, and produce finished goods."""
         if self.status != "draft":
             raise ValueError("Manufacturing Order must be in draft state to confirm.")
+
+        #before making any stock movements check if stock is available for raw materials
+        #count how many raw materils are needed
+        #return an error if no stock is available
+        
+        get_product=self.product
+        get_object_id=StockQuant.objects.get(product=get_product,location__name='Raw Material Location')
+        get_quantity=get_object_id.quantity 
+
+        #this is for git stash
+        #we need to find the quantity of the raw material Needed for this MO
+        boms = BillOfMaterials.objects.filter(finished_product=self.product)
+        for bom in boms:
+            quantity_needed=(bom.quantity_per_unit * self.produced_qty)/bom.finished_product_qunatity
+        if quantity_needed>=get_quantity:
+            raise ValueError('Not Enough Stock of raw material to produce')
 
         # Create stock moves for finished goods
         StockMove.objects.create(

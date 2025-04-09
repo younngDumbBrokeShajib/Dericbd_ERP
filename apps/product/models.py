@@ -34,3 +34,10 @@ class ProductVariant(models.Model):
     sku = models.CharField(max_length=300)
     lot_code = models.CharField(max_length=300)
     weight = models.FloatField()
+
+class BillOfMaterials(models.Model):
+    product=models.ForeignKey(ProductTemplate,on_delete=models.CASCADE,related_name="product_bom")
+    raw_material=models.ForeignKey(ProductTemplate,on_delete=models.CASCADE,limit_choices_to={'category__name': 'Raw Materials'})
+    quantity_per_unit=models.FloatField()
+    finished_product_qunatity=models.FloatField()
+    
